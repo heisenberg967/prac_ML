@@ -1,0 +1,100 @@
+---
+title: "Practical ML Course Project"
+author: "Rishab Ravi"
+output: html_document
+---
+  
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.  
+These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.  
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. This project uses data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.  
+They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here](http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).  
+
+
+```{r warning=FALSE, message=FALSE}
+#loading libraries
+library(caret)
+library(randomForest)
+```
+
+
+```{r warning=FALSE, message=FALSE}
+#reading data
+trainData <- read.csv("pml-training.csv", na.strings = c("NA","#DIV/0!",""))
+testData <- read.csv("pml-testing.csv", na.strings = c("NA","#DIV/0!",""))
+```
+
+##Data preprocessing
+```{r}
+#remove nzv
+subTrain <- trainData[, names(trainData)[!(nzv(trainData, saveMetrics = T)[, 4])]]
+#remove NA cols
+subTrain <- subTrain[, names(subTrain)[sapply(subTrain, 
+          function (x)  ! (any(is.na(x) | x == "")))]]
+
+#remove unlikely predictor variables
+subTrain <- subTrain[,-1]
+subTrain <- subTrain[, c(1:3, 5:58)]
+
+```
+
+```{r}
+#Divide the training data into sub-training/test set
+set.seed(3213)
+inTrain <- createDataPartition(subTrain$classe, p = 0.6, list = FALSE)
+subTraining <- subTrain[inTrain,]
+subTest <- subTrain[-inTrain,]
+```
+
+##Model Building  
+
+##1. Random Forest  
+```{r}
+set.seed(12345)
+#controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFit1 <- train(classe ~ ., data=subTraining, method="rf")
+pred1 <- predict(modFit1, subTraining)
+confusionMatrix(pred1, subTraining$classe)
+```
+
+The accuracy is **100%!**.  
+
+##2. knn
+```{r}
+set.seed(100)
+ctrlKNN <- trainControl(method="adaptive_cv")
+modFit2 <- train(classe~.,data=subTraining,method="knn",trControl = ctrlKNN)
+pred2 <- predict(modFit2, newdata = subTraining)
+confusionMatrix(pred2,subTraining$classe)
+```
+
+The accuracy is 43.64%.  
+
+##3. GBM
+```{r}
+set.seed(10021)
+ctrlGBM <- trainControl(method = "adaptive_cv")
+modFit3 <- train(classe ~ ., data=subTraining, method = "gbm", trControl = ctrlGBM, verbose = FALSE)
+gbmFinMod <- modFit3$finalModel
+pred3 <- predict(modFit3,newdata=subTraining)
+confusionMatrix(pred3,subTraining$classe)
+```
+
+The accuracy of our GBM model is **99.78%**.  
+
+The **random forest** model is the better predictor, and we shall use the same to apply to the testing dataset.  
+
+```{r}
+#details of model:
+varImp(modFit1) #important predictor variables
+
+modFit1$finalModel # final model
+```
+
+##Test data prediction
+```{r}
+#Apply to test data set
+predTesting <- predict(modFit1, testData)
+predTesting
+```
+
